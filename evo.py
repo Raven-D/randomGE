@@ -29,6 +29,8 @@ def simple_softmax(x):
 test_data = mnist.test_data
 test_label = mnist.test_label
 
+fst = True
+
 class Creature(object):
 
     def __init__(self, hp, restore_dir='./model', model_fn='evo.npy'):
@@ -39,6 +41,7 @@ class Creature(object):
         self.erate = hp['erate']
         self.cpu_sleep_step = hp['cpu_sleep_step']
         self.cpu_sleep_time = hp['cpu_sleep_time']
+        self.auto_save_step = hp['auto_save_step']
         self.restore_dir = restore_dir
         self.model_fn = model_fn
         self.layers = []
@@ -87,7 +90,8 @@ class Creature(object):
         # [weights, bc_ce, step]
         if (not os.path.exists(self.restore_dir)):
             os.makedirs(self.restore_dir)
-        sdata = self.layers
+        # sdata = self.layers
+        sdata = copy.deepcopy(self.layers)
         sdata.append(self.bc_ce)
         sdata.append(self.bacc)
         sdata.append(self.step)
@@ -105,9 +109,14 @@ class Creature(object):
         self.bc_layers = copy.deepcopy(self.layers)
         accu_mutate_count = 0
         for i in range(self.layer_count):
+            if (random.randint(0, 2) == 0):
+                # mutate random for different layers.
+                continue
             layer = self.layers[i]
             count = layer.shape[0] * layer.shape[1]
-            mcount = int(np.ceil(count * random.uniform(0.0, self.erate, [])))
+            actural_erate = random.uniform(0.0, self.erate, [])
+            # _log_warning('ae: %.6f' % actural_erate)
+            mcount = int(np.ceil(count * actural_erate))
             if (mcount < 1):
                 mcount = 1
             for j in range(mcount):
@@ -115,12 +124,15 @@ class Creature(object):
                 layer[position[0], position[1]] = create_weights([])
             accu_mutate_count += mcount
             self.layers[i] = layer
-        _log_info('%d neurons had been mutated.' % accu_mutate_count)
+        _log_info('%d neurons mutated.' % accu_mutate_count)
         self.step += 1
         self.__sleep_cpu__()
 
     def recovery(self):
-        self.layers = self.bc_layers
+        if (len(self.bc_layers) == len(self.layers)):
+            self.layers = self.bc_layers
+        else:
+            _log_warning('bc_layers != layers.')
 
     def forward(self, data):
         idata = data
@@ -131,8 +143,10 @@ class Creature(object):
     def evolve(self, data, label, batch=500):
         assert data.shape[1] == self.layers[0].shape[0]
         assert label.shape[1] == self.layers[-1].shape[1]
-
-        self.mutate()
+        
+        global fst
+        if (not fst):
+            self.mutate()
 
         start = 0
         ces = []
@@ -153,20 +167,26 @@ class Creature(object):
         self.ce = np.mean(ces)
         self.acc = correct / float(len(label)) * 100
         if (self.ce >= self.bc_ce):
-            _log_normal('mutate failed. bce:%.4f (acc:%.2f%%)' % (self.bc_ce, self.bacc))
+            _log_normal('step: %d - mutate failed. bce:%.4f (acc:%.2f%%) [cce:%.4f]' % (self.step, self.bc_ce, self.bacc, self.ce))
             self.recovery()
         else:
             self.bc_ce = self.ce
             self.bacc = self.acc
-            _log_normal('bce:%.4f (ce:%.4f, acc:%.2f%%) erate:%.4f, step:%d' % (self.bc_ce, self.ce, self.acc, self.erate, self.step))
+            _log_warning('step: %d - bce:%.4f (cce:%.4f, acc:%.2f%%) erate:%.4f, step:%d' % (self.step, self.bc_ce, self.ce, self.acc, self.erate, self.step))
+
+        if (self.step % self.auto_save_step == 0):
+            self.__store__()
         return self.step
 
 def train():
     # neuron_count, layer_count, data_in_dimention, data_out_dimention, erate
     creature = Creature(H)
+    global fst
     try:
         while (True):
             creature.evolve(test_data, test_label)
+            if (fst):
+                fst = False
     except KeyboardInterrupt:
         creature.__store__()
 
