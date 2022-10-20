@@ -15,7 +15,7 @@ def create_weights(shape, mean=0.0, var=1.0):
     return random.normal(mean, var, shape)
 
 def tanh(x):
-    return np.tanh(x)
+    return np.tanh(x) * 2.0
 
 def softmax(x):
     exps = np.exp(x)
@@ -44,6 +44,7 @@ class Creature(object):
         self.layers = []
         self.bc_layers = []
         self.bc_ce = np.inf
+        self.bacc = 0
         self.step = 1
         # check if has old model.
         self.__restore__()
@@ -68,8 +69,9 @@ class Creature(object):
                 for i in range(self.layer_count - 2):
                     self.layers.append(matrix[i+1])
             # the index -2 is the last layer, the index -1 is the last bc_ce value.
-            self.layers.append(matrix[-3])
-            self.bc_ce = matrix[-2]
+            self.layers.append(matrix[-4])
+            self.bc_ce = matrix[-3]
+            self.bacc = matrix[-2]
             self.step = matrix[-1]
         else:
             _log_info('create new model with random weights...')
@@ -87,6 +89,7 @@ class Creature(object):
             os.makedirs(self.restore_dir)
         sdata = self.layers
         sdata.append(self.bc_ce)
+        sdata.append(self.bacc)
         sdata.append(self.step)
         sdata = np.array(sdata)
         np.save(os.path.join(self.restore_dir, self.model_fn), sdata)
@@ -148,13 +151,14 @@ class Creature(object):
             start = end
 
         self.ce = np.mean(ces)
-        acc = correct / float(len(label))
+        self.acc = correct / float(len(label)) * 100
         if (self.ce >= self.bc_ce):
-            _log_normal('mutate failed. bce:%.3f' % self.bc_ce)
+            _log_normal('mutate failed. bce:%.4f (acc:%.2f%%)' % (self.bc_ce, self.bacc))
             self.recovery()
         else:
             self.bc_ce = self.ce
-            _log_normal('bce:%.3f (ce:%.3f, acc:%.3f) erate:%.4f, step:%d' % (self.bc_ce, self.ce, acc, self.erate, self.step))
+            self.bacc = self.acc
+            _log_normal('bce:%.4f (ce:%.4f, acc:%.2f%%) erate:%.4f, step:%d' % (self.bc_ce, self.ce, self.acc, self.erate, self.step))
         return self.step
 
 def train():
