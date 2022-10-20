@@ -9,6 +9,8 @@ from hparams import params as H
 
 import mnist
 
+random = np.random
+
 def create_weights(shape, mean=0.0, var=1.0):
     return random.normal(mean, var, shape)
 
@@ -42,7 +44,7 @@ class Creature(object):
         self.layers = []
         self.bc_layers = []
         self.bc_ce = np.inf
-        self.step = 0
+        self.step = 1
         # check if has old model.
         self.__restore__()
 
@@ -102,7 +104,7 @@ class Creature(object):
         for i in range(self.layer_count):
             layer = self.layers[i]
             count = layer.shape[0] * layer.shape[1]
-            mcount = int(count * self.erate)
+            mcount = int(np.ceil(count * random.uniform(0.0, self.erate, [])))
             if (mcount < 1):
                 mcount = 1
             for j in range(mcount):
@@ -123,30 +125,36 @@ class Creature(object):
             idata = tanh(np.dot(idata, self.layers[i]))
         return idata
 
-    def evolve(self, data, target, batch=500):
+    def evolve(self, data, label, batch=500):
         assert data.shape[1] == self.layers[0].shape[0]
-        assert target.shape[1] == self.layers[-1].shape[1]
+        assert label.shape[1] == self.layers[-1].shape[1]
 
         self.mutate()
 
         start = 0
         ces = []
+        correct = 0
         while (start < len(data)):
             end = start + batch
             if (end > len(data)):
                 end = len(data)
             cdata = data[start:end]
+            clabel = label[start:end]
             logits = self.forward(cdata)
-            assert logits.shape[1] == target.shape[1]
+            assert logits.shape[1] == clabel.shape[1]
             probs = softmax(logits)
-            ces.append(np.mean(-np.sum(target * np.log(probs), axis=-1)))
+            ces.append(np.mean(-np.sum(clabel * np.log(probs), axis=-1)))
+            correct += np.sum(np.argmax(probs, axis=-1) == np.argmax(clabel, axis=-1))
+            start = end
 
         self.ce = np.mean(ces)
+        acc = correct / float(len(label))
         if (self.ce >= self.bc_ce):
+            _log_normal('mutate failed. bce:%.3f' % self.bc_ce)
             self.recovery()
         else:
             self.bc_ce = self.ce
-        _log_normal('bce:%.3f (ce:%.3f) erate:%.4f, step:%d' % (self.bc_ce, self.ce, self.erate, self.step))
+            _log_normal('bce:%.3f (ce:%.3f, acc:%.3f) erate:%.4f, step:%d' % (self.bc_ce, self.ce, acc, self.erate, self.step))
         return self.step
 
 def train():
@@ -157,3 +165,5 @@ def train():
             creature.evolve(test_data, test_label)
     except KeyboardInterrupt:
         creature.__store__()
+
+train()
