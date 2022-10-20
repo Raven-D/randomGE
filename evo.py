@@ -129,7 +129,7 @@ class Creature(object):
 
     def recovery(self):
         if (len(self.bc_layers) == len(self.layers)):
-            self.layers = self.bc_layers
+            self.layers = copy.deepcopy(self.bc_layers)
         else:
             _log_warning('bc_layers != layers.')
 
