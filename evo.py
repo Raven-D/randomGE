@@ -90,8 +90,7 @@ class Creature(object):
         # [weights, bc_ce, step]
         if (not os.path.exists(self.restore_dir)):
             os.makedirs(self.restore_dir)
-        # sdata = self.layers
-        sdata = copy.deepcopy(self.layers)
+        sdata = self.bc_layers
         sdata.append(self.bc_ce)
         sdata.append(self.bacc)
         sdata.append(self.step)
