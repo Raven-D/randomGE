@@ -44,7 +44,7 @@ def load_mnist(train_image_path, train_label_path, test_image_path, test_label_p
 
     return (image['train'], label['train']), (image['test'], label['test'])
 
-_tr, _te = load_mnist('./mnist/train-images.idx3-ubyte', './mnist/train-labels.idx1-ubyte', './mnist/t10k-images.idx3-ubyte', './mnist/t10k-labels.idx1-ubyte')
+_tr, _te = load_mnist('./mnist/train-images-idx3-ubyte', './mnist/train-labels-idx1-ubyte', './mnist/t10k-images-idx3-ubyte', './mnist/t10k-labels-idx1-ubyte')
 train_data, train_label = _tr
 test_data, test_label = _te
 TRAIN_DATA_SIZE = len(train_data)
