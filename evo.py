@@ -87,7 +87,7 @@ class Creature(object):
 
     def __store__(self):
         # SAVE PROTOCOL
-        # [weights, bc_ce, step]
+        # [weights, bc_ce, bacc, step]
         if (not os.path.exists(self.restore_dir)):
             os.makedirs(self.restore_dir)
         sdata = self.bc_layers
@@ -108,19 +108,20 @@ class Creature(object):
         self.bc_layers = copy.deepcopy(self.layers)
         accu_mutate_count = 0
         for i in range(self.layer_count):
-            if (random.randint(0, 2) == 0):
+            if (random.randint(1, 4) != 1 and i != (self.layer_count - 1)):
                 # mutate random for different layers.
                 continue
             layer = self.layers[i]
-            count = layer.shape[0] * layer.shape[1]
-            actural_erate = random.uniform(0.0, self.erate, [])
-            # _log_warning('ae: %.6f' % actural_erate)
-            mcount = int(np.ceil(count * actural_erate))
-            if (mcount < 1):
+            mcount = random.randint(1, 5)
+
+            if (i == (self.layer_count - 1) and accu_mutate_count == 0 and mcount == 0):
                 mcount = 1
+
             for j in range(mcount):
                 position = (random.randint(0, layer.shape[0], []), random.randint(0, layer.shape[1], []))
                 layer[position[0], position[1]] = create_weights([])
+                # layer[position[0], position[1]] = create_weights([]) * random.uniform(0.0, 1.0)
+                # layer[position[0], position[1]] = create_weights([]) * layer[position[0], position[1]]
             accu_mutate_count += mcount
             self.layers[i] = layer
         _log_info('%d neurons mutated.' % accu_mutate_count)
@@ -171,14 +172,13 @@ class Creature(object):
         else:
             self.bc_ce = self.ce
             self.bacc = self.acc
-            _log_warning('step: %d - bce:%.4f (cce:%.4f, acc:%.2f%%) erate:%.4f, step:%d' % (self.step, self.bc_ce, self.ce, self.acc, self.erate, self.step))
+            _log_warning('step: %d - mutate failed. bce:%.4f (acc:%.2f%%) [cce:%.4f]' % (self.step, self.bc_ce, self.bacc, self.ce))
 
         if (self.step % self.auto_save_step == 0):
             self.__store__()
         return self.step
 
 def train():
-    # neuron_count, layer_count, data_in_dimention, data_out_dimention, erate
     creature = Creature(H)
     global fst
     try:
