@@ -2,6 +2,7 @@ import numpy as np
 import time
 import copy
 import os
+import codecs as co
 
 from rlog import _log_warning, _log_info, _log_normal, _log_error
 
@@ -25,6 +26,22 @@ def simple_softmax(x):
     x = x - np.min(x, axis=-1).reshape(x.shape[0], 1)
     return x / np.sum(x, axis=-1).reshape([x.shape[0], 1])
 
+CTRLF = './ectrl'
+def read_ctrl():
+    ctrl = ''
+    try:
+        with co.open(CTRLF, 'r') as rf:
+            ctrl = rf.readline()
+            ctrl = ctrl.strip()
+    except Exception:
+        _log_warning('no ectrl config found.')
+    if (ctrl != ''):
+        if (ctrl.startswith('c')):
+            return int(ctrl[1:])
+        elif (ctrl.startswith('r')):
+            return float(ctrl[1:])
+    # default: c3
+    return int(3)
 
 test_data = mnist.test_data
 test_label = mnist.test_label
@@ -38,7 +55,6 @@ class Creature(object):
         self.layer_count = hp['layer_count']
         self.data_in_dimention = hp['data_in_dimention']
         self.data_out_dimention = hp['data_out_dimention']
-        self.erate = hp['erate']
         self.cpu_sleep_step = hp['cpu_sleep_step']
         self.cpu_sleep_time = hp['cpu_sleep_time']
         self.auto_save_step = hp['auto_save_step']
@@ -49,6 +65,7 @@ class Creature(object):
         self.bc_ce = np.inf
         self.bacc = 0
         self.step = 1
+        self.erorc = read_ctrl()
         # check if has old model.
         self.__restore__()
 
@@ -107,12 +124,21 @@ class Creature(object):
     def mutate(self):
         self.bc_layers = copy.deepcopy(self.layers)
         accu_mutate_count = 0
+
+        mutate_by_count = True
+        if (type(self.erorc) == float):
+            mutate_by_count = False
+
         for i in range(self.layer_count):
             if (random.randint(1, 4) != 1 and i != (self.layer_count - 1)):
                 # mutate random for different layers.
                 continue
             layer = self.layers[i]
-            mcount = random.randint(1, 5)
+
+            if (mutate_by_count):
+                mcount = random.randint(1, self.erorc)
+            else:
+                mcount = int(np.ceil(layer.shape[0] * layer.shape[1] * self.erorc))
 
             if (i == (self.layer_count - 1) and accu_mutate_count == 0 and mcount == 0):
                 mcount = 1
@@ -140,7 +166,7 @@ class Creature(object):
             idata = tanh(np.dot(idata, self.layers[i]))
         return idata
 
-    def evolve(self, data, label, batch=500):
+    def evolve(self, data, label, batch=5000):
         assert data.shape[1] == self.layers[0].shape[0]
         assert label.shape[1] == self.layers[-1].shape[1]
         
@@ -167,15 +193,18 @@ class Creature(object):
         self.ce = np.mean(ces)
         self.acc = correct / float(len(label)) * 100
         if (self.ce >= self.bc_ce):
-            _log_normal('step: %d - mutate failed. bce:%.4f (acc:%.2f%%) [cce:%.4f]' % (self.step, self.bc_ce, self.bacc, self.ce))
+            _log_normal('step: %d - mutate failed. LCE:%.5f (SCR:%.2f%%) [CCE:%.5f]' % (self.step, self.bc_ce, self.bacc, self.ce))
             self.recovery()
         else:
             self.bc_ce = self.ce
             self.bacc = self.acc
-            _log_warning('step: %d - mutate failed. bce:%.4f (acc:%.2f%%) [cce:%.4f]' % (self.step, self.bc_ce, self.bacc, self.ce))
+            _log_warning('step: %d - mutate succes. LCE:%.5f (SCR:%.2f%%) [CCE:%.5f]' % (self.step, self.bc_ce, self.bacc, self.ce))
 
         if (self.step % self.auto_save_step == 0):
             self.__store__()
+            # update evo policy by the way.
+            self.erorc = read_ctrl()
+            _log_warning('refresh erorc: ' + str(self.erorc))
         return self.step
 
 def train():
